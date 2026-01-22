@@ -20,16 +20,21 @@ datasource db {
 //
 
 model Account {
-    id              String      @id @default(cuid())
-    publicKey       String      @unique
-    seq             Int         @default(0)
-    feedSeq         BigInt      @default(0)
-    createdAt       DateTime    @default(now())
-    updatedAt       DateTime    @updatedAt
-    settings        String?
-    settingsVersion Int         @default(0)
-    githubUserId    String?     @unique
-    githubUser      GithubUser? @relation(fields: [githubUserId], references: [id])
+    id                 String      @id @default(cuid())
+    publicKey          String      @unique
+    seq                Int         @default(0)
+    feedSeq            BigInt      @default(0)
+    createdAt          DateTime    @default(now())
+    updatedAt          DateTime    @updatedAt
+    settings           String?
+    settingsVersion    Int         @default(0)
+    githubUserId       String?     @unique
+    githubUser         GithubUser? @relation(fields: [githubUserId], references: [id])
+
+    // SuperTokens authentication
+    supertokensUserId  String?     @unique
+    email              String?
+    authProvider       String?     // 'google', 'emailpassword', 'github'
 
     // Profile
     firstName String?
@@ -52,6 +57,9 @@ model Account {
     AccessKey           AccessKey[]
     UserFeedItem        UserFeedItem[]
     UserKVStore         UserKVStore[]
+    Project             Project[]
+    Room                Room[]
+    MachineToken        MachineToken[]
 }
 
 model TerminalAuthRequest {
@@ -108,6 +116,7 @@ model Session {
     messages          SessionMessage[]
     usageReports      UsageReport[]
     accessKeys        AccessKey[]
+    roomSessions      RoomSession[]
 
     @@unique([accountId, tag])
     @@index([accountId, updatedAt(sort: Desc)])
@@ -360,4 +369,105 @@ model UserKVStore {
 
     @@unique([accountId, key])
     @@index([accountId])
+}
+
+//
+// Projects & Rooms
+//
+
+model Project {
+    id          String    @id @default(cuid())
+    accountId   String
+    account     Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+    // Tree structure (materialized path)
+    parentId    String?
+    parent      Project?  @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+    children    Project[] @relation("ProjectHierarchy")
+    path        String    @default("/")   // "/rootId/childId/grandchildId/"
+    depth       Int       @default(0)
+
+    // Metadata
+    name        String
+    description String?
+    /// [ProjectMetadata]
+    metadata    Json?
+    sortOrder   Int       @default(0)
+
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    rooms       Room[]
+
+    @@unique([accountId, parentId, name])
+    @@index([accountId, path])
+    @@index([accountId])
+}
+
+model Room {
+    id          String     @id @default(cuid())
+    accountId   String
+    account     Account    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+    projectId   String
+    project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+    name        String
+    description String?
+    /// [RoomMetadata]
+    metadata    Json?      // Future: workspace config, shared resources
+    status      RoomStatus @default(active)
+
+    createdAt   DateTime   @default(now())
+    updatedAt   DateTime   @updatedAt
+
+    roomSessions RoomSession[]
+
+    @@unique([projectId, name])
+    @@index([accountId])
+    @@index([projectId])
+}
+
+model RoomSession {
+    id          String          @id @default(cuid())
+    roomId      String
+    room        Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+    sessionId   String
+    session     Session         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+    role        RoomSessionRole @default(member)
+    joinedAt    DateTime        @default(now())
+
+    @@unique([roomId, sessionId])
+    @@index([roomId])
+    @@index([sessionId])
+}
+
+enum RoomStatus {
+    active
+    archived
+    locked
+}
+
+enum RoomSessionRole {
+    primary
+    member
+    observer
+}
+
+//
+// Machine Tokens (for container/daemon authentication)
+//
+
+model MachineToken {
+    id          String    @id @default(cuid())
+    accountId   String
+    account     Account   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+    name        String    // User-friendly name: "My Docker Agent"
+    token       String    @unique // The bearer token value (mkt_...)
+    lastUsedAt  DateTime?
+    expiresAt   DateTime? // Optional expiration
+    createdAt   DateTime  @default(now())
+    updatedAt   DateTime  @updatedAt
+
+    @@index([accountId])
+    @@index([token])
 }

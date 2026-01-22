@@ -21,22 +21,49 @@ import { enableAuthentication } from "./utils/enableAuthentication";
 import { userRoutes } from "./routes/userRoutes";
 import { feedRoutes } from "./routes/feedRoutes";
 import { kvRoutes } from "./routes/kvRoutes";
+import { projectRoutes } from "./routes/projectRoutes";
+import { roomRoutes } from "./routes/roomRoutes";
+import { machineTokenRoutes } from "./routes/machineTokenRoutes";
+import { initSuperTokens } from "@/app/auth/supertokens";
+import supertokens from "supertokens-node";
+import { plugin as supertokensPlugin, errorHandler as supertokensErrorHandler } from "supertokens-node/framework/fastify";
 
 export async function startApi() {
 
     // Configure
     log('Starting API...');
 
+    // Initialize SuperTokens
+    initSuperTokens();
+
     // Start API
     const app = fastify({
         loggerInstance: logger,
         bodyLimit: 1024 * 1024 * 100, // 100MB
     });
+
+    // CORS configuration with SuperTokens headers
     app.register(import('@fastify/cors'), {
-        origin: '*',
-        allowedHeaders: '*',
-        methods: ['GET', 'POST', 'DELETE']
+        origin: [
+            process.env.WEBSITE_DOMAIN || 'http://15.204.94.200:5175',
+            'http://localhost:5175',
+            'http://localhost:5173',
+        ],
+        allowedHeaders: [
+            'Content-Type',
+            'Authorization',
+            ...supertokens.getAllCORSHeaders(),
+        ],
+        methods: ['GET', 'POST', 'PATCH', 'DELETE', 'PUT', 'OPTIONS'],
+        credentials: true,
     });
+
+    // Register SuperTokens plugin (handles /auth/* routes)
+    await app.register(supertokensPlugin);
+
+    // SuperTokens error handler
+    app.setErrorHandler(supertokensErrorHandler());
+
     app.get('/', function (request, reply) {
         reply.send('Welcome to Happy Server!');
     });
@@ -66,6 +93,9 @@ export async function startApi() {
     userRoutes(typed);
     feedRoutes(typed);
     kvRoutes(typed);
+    projectRoutes(typed);
+    roomRoutes(typed);
+    machineTokenRoutes(typed);
 
     // Start HTTP 
     const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3005;
