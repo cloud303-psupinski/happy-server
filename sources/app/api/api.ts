@@ -24,6 +24,9 @@ import { kvRoutes } from "./routes/kvRoutes";
 import { projectRoutes } from "./routes/projectRoutes";
 import { roomRoutes } from "./routes/roomRoutes";
 import { machineTokenRoutes } from "./routes/machineTokenRoutes";
+import { containerRoutes } from "./routes/containerRoutes";
+import { roomMessageRoutes } from "./routes/roomMessageRoutes";
+import { projectNoteRoutes } from "./routes/projectNoteRoutes";
 import { initSuperTokens } from "@/app/auth/supertokens";
 import supertokens from "supertokens-node";
 import { plugin as supertokensPlugin, errorHandler as supertokensErrorHandler } from "supertokens-node/framework/fastify";
@@ -96,8 +99,11 @@ export async function startApi() {
     projectRoutes(typed);
     roomRoutes(typed);
     machineTokenRoutes(typed);
+    containerRoutes(typed);
+    roomMessageRoutes(typed);
+    projectNoteRoutes(typed);
 
-    // Start HTTP 
+    // Start HTTP
     const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3005;
     await app.listen({ port, host: '0.0.0.0' });
     onShutdown('api', async () => {
