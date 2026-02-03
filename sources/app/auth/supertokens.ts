@@ -20,7 +20,7 @@ export function initSuperTokens() {
         framework: "fastify",
         supertokens: {
             connectionURI: connectionUri,
-            // apiKey is optional for self-hosted
+            apiKey: process.env.SUPERTOKENS_API_KEY,
         },
         appInfo: {
             appName: "Happy Server",
